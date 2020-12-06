@@ -30,19 +30,47 @@ func procMail(fname string) (string, Signant, error) {
     }
     from := m.Header.Get("From")
     if from != "Olot es mou <form@olotesmou.cat>" {
-        return "", s, errors.New("not from form")
+        return "", s, errors.New("no és del formulari")
     }
 
+    email := "N/A"
+    s.nom = "N/A"
+    s.cp = "N/A"
     scanner := bufio.NewScanner(m.Body)
     for scanner.Scan() {
-        if scanner.Text() == "--- Email ---" {
+        switch scanner.Text() {
+        case "--- Nom i cognoms ---":
             scanner.Scan()
             scanner.Scan()
-            fmt.Println(scanner.Text())
+            s.nom = scanner.Text()
+        case "--- Email ---":
+            scanner.Scan()
+            scanner.Scan()
+            email = scanner.Text()
+        case "--- Codi Postal ---":
+            scanner.Scan()
+            scanner.Scan()
+            s.cp = scanner.Text()
         }
     }
+    if email == "N/A" {
+        return "", s, errors.New("correu no disponible")
+    }
 
-    return fname, s, nil
+    s.fitxer = fname
+
+    return email, s, nil
+}
+
+func dumpDB(db map[string]Signant, fname string) {
+    f, err := os.Create(fname)
+    if err != nil {
+        fmt.Println("Error creant %s: %s", fname, err.Error())
+    }
+    defer f.Close()
+    for c, s := range db {
+        f.WriteString(fmt.Sprintf("%s (%s), %s\n", s.nom, c, s.cp))
+    }
 }
 
 func main() {
@@ -53,16 +81,23 @@ func main() {
     }
 
     db := make(map[string]Signant)
-    for _, f := range files[:10] {
-        //fmt.Println(f.Name())
+    for _, f := range files {
         correu, signant, err := procMail(fmt.Sprintf("%v/%v", os.Args[1], f.Name()))
         if err != nil {
             fmt.Printf("Error processant %v: %v\n", f.Name(), err.Error())
             continue
         }
+
+        if _, exists := db[correu]; exists {
+            fmt.Printf("Entrada duplicada: %v\n", correu)
+            continue
+        }
+
         db[correu] = signant
     }
 
     fmt.Printf("File count: %v\n", len(files))
     fmt.Printf("DB count: %v\n", len(db))
+
+    dumpDB(db, "signants.txt")
 }
