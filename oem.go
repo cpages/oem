@@ -68,15 +68,9 @@ func procMail(path string, finfo os.FileInfo) (string, Signant, error) {
 }
 
 type Pair struct {
-    key string
-    value Signant
+    clau string
+    valor Signant
 }
-
-type PairList []Pair
-
-func (p PairList) Len() int { return len(p) }
-func (p PairList) Less(i, j int) bool { return p[i].value.data.Before(p[j].value.data) }
-func (p PairList) Swap(i, j int){ p[i], p[j] = p[j], p[i] }
 
 func dumpDB(db map[string]Signant, fname string) {
     f, err := os.Create(fname)
@@ -85,16 +79,18 @@ func dumpDB(db map[string]Signant, fname string) {
     }
     defer f.Close()
 
-    pl := make(PairList, len(db))
+    pl := make([]Pair, len(db))
     i := 0
     for k, v := range db {
       pl[i] = Pair{k, v}
       i++
     }
-    sort.Sort(pl)
+    sort.Slice(pl,  func(i, j int) bool {
+        return pl[i].valor.data.Before(pl[j].valor.data)
+    })
 
     for _, p := range pl {
-        f.WriteString(fmt.Sprintf("%s (%s), %s\n", p.value.nom, p.key, p.value.cp))
+        f.WriteString(fmt.Sprintf("%s (%s), %s\n", p.valor.nom, p.clau, p.valor.cp))
     }
 }
 
