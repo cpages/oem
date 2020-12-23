@@ -8,15 +8,19 @@ import (
     "log"
     "net/mail"
     "os"
+    "sort"
+    "time"
 )
 
 type Signant struct {
     nom string
     cp string
     fitxer string
+    data time.Time
 }
 
-func procMail(fname string) (string, Signant, error) {
+func procMail(path string, finfo os.FileInfo) (string, Signant, error) {
+    fname := fmt.Sprintf("%v/%v", path, finfo.Name())
     var s Signant
     file, err := os.Open(fname)
     if err != nil {
@@ -57,10 +61,22 @@ func procMail(fname string) (string, Signant, error) {
         return "", s, errors.New("correu no disponible")
     }
 
-    s.fitxer = fname
+    s.fitxer = finfo.Name()
+    s.data = finfo.ModTime()
 
     return email, s, nil
 }
+
+type Pair struct {
+    key string
+    value Signant
+}
+
+type PairList []Pair
+
+func (p PairList) Len() int { return len(p) }
+func (p PairList) Less(i, j int) bool { return p[i].value.data.Before(p[j].value.data) }
+func (p PairList) Swap(i, j int){ p[i], p[j] = p[j], p[i] }
 
 func dumpDB(db map[string]Signant, fname string) {
     f, err := os.Create(fname)
@@ -68,8 +84,17 @@ func dumpDB(db map[string]Signant, fname string) {
         fmt.Println("Error creant %s: %s", fname, err.Error())
     }
     defer f.Close()
-    for c, s := range db {
-        f.WriteString(fmt.Sprintf("%s (%s), %s\n", s.nom, c, s.cp))
+
+    pl := make(PairList, len(db))
+    i := 0
+    for k, v := range db {
+      pl[i] = Pair{k, v}
+      i++
+    }
+    sort.Sort(pl)
+
+    for _, p := range pl {
+        f.WriteString(fmt.Sprintf("%s (%s), %s\n", p.value.nom, p.key, p.value.cp))
     }
 }
 
@@ -82,7 +107,7 @@ func main() {
 
     db := make(map[string]Signant)
     for _, f := range files {
-        correu, signant, err := procMail(fmt.Sprintf("%v/%v", os.Args[1], f.Name()))
+        correu, signant, err := procMail(os.Args[1], f)
         if err != nil {
             fmt.Printf("Error processant %v: %v\n", f.Name(), err.Error())
             continue
